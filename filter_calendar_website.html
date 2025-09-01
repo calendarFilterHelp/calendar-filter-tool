@@ -135,7 +135,7 @@
                     currentEvent.push(line);
                     if (strippedLine.startsWith('SUMMARY:')) {
                         const summaryContent = strippedLine.substring('SUMMARY:'.length).toLowerCase();
-                        if ((summaryContent.includes('abi') || summaryContent.includes('darshini')) && !summaryContent.includes('cancel')) {
+                        if ((summaryContent.includes('alan') || summaryContent.includes('bob')) && !summaryContent.includes('cancel')) {
                             shouldKeepEvent = true;
                         }
                     }
