@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iCalendar Event Filter</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .btn {
+            @apply px-6 py-3 rounded-lg font-bold transition-transform transform hover:scale-105;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+
+    <div class="bg-white p-8 rounded-2xl shadow-xl border border-gray-200 w-full max-w-2xl">
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-center mb-2 text-gray-800">iCalendar Event Filter</h1>
+        <p class="text-center text-gray-500 mb-8">Quickly filter events from your .ics file without using the command line.</p>
+
+        <div class="space-y-6">
+            <!-- Instructions and File Upload -->
+            <div class="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-inner">
+                <div class="text-sm font-semibold text-gray-600 mb-2">Step 1: Select Your .ics File</div>
+                <div class="flex items-center space-x-4">
+                    <label for="ics-file" class="btn bg-indigo-600 text-white cursor-pointer hover:bg-indigo-700">
+                        Upload File
+                    </label>
+                    <input type="file" id="ics-file" class="hidden" accept=".ics">
+                    <span id="file-name" class="text-gray-500 truncate text-sm sm:text-base">No file chosen</span>
+                </div>
+            </div>
+
+            <!-- Filtered Content Display -->
+            <div class="bg-white border border-gray-200 rounded-xl shadow-inner p-6">
+                <div class="text-sm font-semibold text-gray-600 mb-4">Step 2: Filter and Download</div>
+                <div id="filter-status" class="text-center text-gray-500 my-4 text-sm sm:text-base hidden">Filtering events...</div>
+                
+                <div id="download-container" class="mt-4 hidden">
+                    <div class="flex items-center justify-center space-x-2">
+                        <span class="text-green-600 font-medium">✅ Filtered successfully!</span>
+                    </div>
+                    <p class="text-center text-gray-500 text-sm mt-2">Ready to download your new calendar.</p>
+                </div>
+
+                 <button id="download-btn" class="btn bg-green-500 text-white w-full opacity-50 cursor-not-allowed mt-4" disabled>
+                    Download Filtered Calendar
+                </button>
+                <div id="error-message" class="text-red-500 text-sm mt-2 hidden text-center"></div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('ics-file');
+        const fileNameSpan = document.getElementById('file-name');
+        const filterStatusDiv = document.getElementById('filter-status');
+        const downloadContainer = document.getElementById('download-container');
+        const downloadBtn = document.getElementById('download-btn');
+        const errorMessageDiv = document.getElementById('error-message');
+
+        let filteredContent = '';
+
+        // Add event listener to the file input
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                fileNameSpan.textContent = file.name;
+                filterStatusDiv.textContent = 'Filtering events...';
+                filterStatusDiv.classList.remove('hidden');
+                downloadBtn.disabled = true;
+                downloadBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                downloadContainer.classList.add('hidden');
+                errorMessageDiv.classList.add('hidden');
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    processIcsFile(content);
+                };
+                reader.onerror = () => {
+                    errorMessageDiv.textContent = 'Failed to read the file.';
+                    errorMessageDiv.classList.remove('hidden');
+                    filterStatusDiv.classList.add('hidden');
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Add event listener to the download button
+        downloadBtn.addEventListener('click', () => {
+            if (filteredContent) {
+                const blob = new Blob([filteredContent], { type: 'text/calendar' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'filtered_calendar.ics';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        });
+
+        // Main function to process the .ics file content
+        function processIcsFile(content) {
+            const lines = content.split(/\r?\n/);
+            let resultLines = [];
+            let currentEvent = [];
+            let isInsideEvent = false;
+            let shouldKeepEvent = false;
+
+            for (const line of lines) {
+                const strippedLine = line.trim();
+
+                if (strippedLine === 'BEGIN:VEVENT') {
+                    isInsideEvent = true;
+                    currentEvent = [line];
+                    shouldKeepEvent = false;
+                    continue;
+                }
+
+                if (isInsideEvent) {
+                    currentEvent.push(line);
+                    if (strippedLine.startsWith('SUMMARY:')) {
+                        const summaryContent = strippedLine.substring('SUMMARY:'.length).toLowerCase();
+                        if ((summaryContent.includes('abi') || summaryContent.includes('darshini')) && !summaryContent.includes('cancel')) {
+                            shouldKeepEvent = true;
+                        }
+                    }
+
+                    if (strippedLine === 'END:VEVENT') {
+                        isInsideEvent = false;
+                        if (shouldKeepEvent) {
+                            resultLines.push(...currentEvent);
+                        }
+                        currentEvent = [];
+                    }
+                } else {
+                    // Lines outside of VEVENT blocks (like BEGIN:VCALENDAR)
+                    if (strippedLine !== 'END:VCALENDAR' && strippedLine !== 'END:VTIMEZONE') {
+                        resultLines.push(line);
+                    }
+                }
+            }
+
+            // Manually add the END:VCALENDAR line at the very end
+            resultLines.push('END:VCALENDAR');
+            filteredContent = resultLines.join('\n');
+            
+            filterStatusDiv.classList.add('hidden');
+            downloadContainer.classList.remove('hidden');
+            downloadBtn.disabled = false;
+            downloadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    </script>
+</body>
+</html>
